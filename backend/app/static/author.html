@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>作者專區 - 稿件清單</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif; }
+    body { background-color: #f1f5f9; color: #1e293b; padding-bottom: 40px; }
+    header { background-color: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 20px; color: #0f172a; }
+    .user-info { display: flex; align-items: center; gap: 16px; font-size: 14px; color: #475569; }
+    .btn-logout { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+    .btn-logout:hover { background: #e2e8f0; }
+    .container { max-width: 1080px; margin: 30px auto; padding: 0 20px; }
+    .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .page-title { font-size: 22px; font-weight: 700; color: #0f172a; }
+    .btn-add { background-color: #2563eb; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(37,99,235,0.25); }
+    .btn-add:hover { background-color: #1d4ed8; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th { background: #f8fafc; color: #475569; font-size: 14px; font-weight: 600; padding: 14px 18px; border-bottom: 1px solid #e2e8f0; }
+    td { padding: 16px 18px; border-bottom: 1px solid #f1f5f9; font-size: 14px; vertical-align: middle; }
+    tr:hover { background-color: #f8fafc; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .badge.editing { background-color: #fef3c7; color: #92400e; }
+    .badge.review { background-color: #dbeafe; color: #1e40af; }
+    .badge.approved { background-color: #dcfce7; color: #166534; }
+    .tag-category { background-color: #f1f5f9; color: #334155; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+    .operations { display: flex; gap: 8px; align-items: center; }
+    .btn-op { padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; text-decoration: none; border: 1px solid transparent; cursor: pointer; transition: all 0.15s; }
+    .btn-edit { background-color: #f8fafc; border-color: #cbd5e1; color: #0f172a; }
+    .btn-edit:hover { background-color: #e2e8f0; }
+    .btn-delete { background-color: #fff1f2; border-color: #fecdd3; color: #be123c; }
+    .btn-delete:hover { background-color: #ffe4e6; }
+    .btn-submit { background-color: #2563eb; color: #fff; }
+    .btn-submit:hover { background-color: #1d4ed8; }
+    .empty-state { padding: 48px; text-align: center; color: #94a3b8; font-size: 15px; }
+    .reject-alert { margin-top: 6px; font-size: 12px; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 4px; display: inline-block; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>投稿審查系統 - 作者專區</h1>
+    <div class="user-info">
+      <span>作者身分：<strong id="displayUsername">載入中...</strong></span>
+      <button class="btn-logout" onclick="logout()">登出系統</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="action-bar">
+      <div>
+        <div class="page-title">我的投稿稿件清單</div>
+        <p style="color:#64748b; font-size:13px; margin-top:4px;">檢視稿件類別、標題、審查狀態，並進行編輯、刪除或送出投稿</p>
+      </div>
+      <a href="/static/edit_manuscript.html" class="btn-add">＋ 新增投稿</a>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 70px;">編號</th>
+            <th style="width: 140px;">類別</th>
+            <th>標題</th>
+            <th style="width: 130px;">審查狀態</th>
+            <th style="width: 260px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="manuscriptList">
+          <tr><td colspan="5" class="empty-state">資料載入中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    const username = localStorage.getItem('username');
+
+    // 權限檢查：必須為作者
+    if (!token || role !== 'author') {
+      alert('請先以作者身分登入！');
+      window.location.href = '/static/index.html';
+    } else {
+      document.getElementById('displayUsername').textContent = username || '作者';
+      loadArticles();
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = '/static/index.html';
+    }
+
+    async function loadArticles() {
+      try {
+        const resp = await fetch('/author/articles', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          logout();
+          return;
+        }
+        const data = await resp.json();
+        renderTable(data);
+      } catch (err) {
+        document.getElementById('manuscriptList').innerHTML = '<tr><td colspan="5" class="empty-state" style="color:red;">載入稿件資料失敗，請確認後端服務</td></tr>';
+      }
+    }
+
+    function renderTable(articles) {
+      const tbody = document.getElementById('manuscriptList');
+      if (!articles || articles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">目前尚無投稿稿件，歡迎點擊右上角「新增投稿」開始創作！</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = articles.map(m => {
+        let statusBadge = '';
+        let ops = '';
+
+        if (m.status === 'draft') {
+          statusBadge = '<span class="badge editing">編輯中</span>';
+          ops = `
+            <a href="/static/edit_manuscript.html?id=${m.id}" class="btn-op btn-edit">編輯</a>
+            <button class="btn-op btn-delete" onclick="handleDelete(${m.id}, '${escapeHtml(m.title)}')">刪除</button>
+            <button class="btn-op btn-submit" onclick="handleSubmit(${m.id})">送出投稿</button>
+          `;
+        } else if (m.status === 'review') {
+          statusBadge = '<span class="badge review">審查中</span>';
+          ops = '<span style="color:#64748b; font-size:13px;">審查中，無法編輯</span>';
+        } else if (m.status === 'approved') {
+          statusBadge = '<span class="badge approved">已通過</span>';
+          ops = '<span style="color:#166534; font-weight:600; font-size:13px;">🎉 審查已通過</span>';
+        }
+
+        // 退回通知提示
+        let noticeHtml = '';
+        if (m.status === 'draft' && m.reject_notice) {
+          noticeHtml = `<div class="reject-alert">⚠️ 退回通知：${escapeHtml(m.reject_notice)}</div>`;
+        }
+
+        return `
+          <tr>
+            <td>#${m.id}</td>
+            <td><span class="tag-category">${escapeHtml(m.category)}</span></td>
+            <td>
+              <div style="font-weight:600; color:#1e293b;">${escapeHtml(m.title)}</div>
+              ${noticeHtml}
+            </td>
+            <td>${statusBadge}</td>
+            <td><div class="operations">${ops}</div></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function handleDelete(id, title) {
+      if (!confirm(`確定要刪除編輯中的稿件「${title}」嗎？刪除後無法恢復。`)) return;
+
+      try {
+        const resp = await fetch(`/author/articles/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const res = await resp.json();
+        if (resp.ok) {
+          alert('稿件已成功刪除！');
+          loadArticles();
+        } else {
+          alert(res.detail || '刪除失敗');
+        }
+      } catch (err) {
+        alert('刪除操作失敗');
+      }
+    }
+
+    async function handleSubmit(id) {
+      if (!confirm('確認送出投稿進行審查嗎？送出後狀態將轉為「審查中」，審查期間將無法修改。')) return;
+
+      try {
+        const resp = await fetch(`/author/articles/${id}/submit`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const res = await resp.json();
+        if (resp.ok) {
+          alert('稿件已成功送出投稿！審查狀態已變更為「審查中」。');
+          loadArticles();
+        } else {
+          alert(res.detail || '送出投稿失敗');
+        }
+      } catch (err) {
+        alert('送出操作失敗');
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>

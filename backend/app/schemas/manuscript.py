@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 class ManuscriptBase(BaseModel):
@@ -18,6 +18,9 @@ class ManuscriptOut(ManuscriptBase):
     id: int
     status: str
     author_id: int
+    # Pydantic v2 uses ConfigDict for ORM mode
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        orm_mode = True
+# Alias used by routes
+class ManuscriptRead(ManuscriptOut):
+    pass

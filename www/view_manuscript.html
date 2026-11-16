@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>審查稿件全文 - 投稿審查系統</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif; }
+    body { background-color: #f1f5f9; color: #1e293b; padding-bottom: 40px; }
+    header { background-color: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 20px; color: #0f172a; }
+    .container { max-width: 860px; margin: 30px auto; padding: 0 20px; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); padding: 36px; border: 1px solid #e2e8f0; }
+    .meta-bar { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding-bottom: 18px; margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #475569; }
+    .tag-category { background-color: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 13px; }
+    .article-title { font-size: 26px; font-weight: 700; color: #0f172a; margin-bottom: 24px; line-height: 1.4; }
+    .content-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; font-size: 16px; line-height: 1.8; color: #334155; white-space: pre-wrap; word-break: break-word; min-height: 250px; }
+    .btn-row { display: flex; gap: 12px; justify-content: flex-end; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+    .btn { padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; text-decoration: none; display: inline-flex; align-items: center; }
+    .btn-back { background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+    .btn-back:hover { background-color: #e2e8f0; }
+    .btn-pass { background-color: #10b981; color: #fff; }
+    .btn-pass:hover { background-color: #059669; }
+    .btn-reject { background-color: #f59e0b; color: #fff; }
+    .btn-reject:hover { background-color: #d97706; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>投稿審查系統 - 稿件內容審查</h1>
+    <a href="/static/editor.html" style="font-size:14px; color:#2563eb; text-decoration:none; font-weight:600;">← 返回待審清單</a>
+  </header>
+
+  <div class="container">
+    <div class="card" id="articleCard">
+      <div style="text-align:center; color:#94a3b8; padding:40px;">稿件載入中...</div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    const params = new URLSearchParams(window.location.search);
+    const mid = params.get('id');
+
+    if (!token || role !== 'editor') {
+      alert('請先以編輯者 (host) 身分登入！');
+      window.location.href = '/static/index.html';
+    } else if (!mid) {
+      alert('未指定稿件 ID');
+      window.location.href = '/static/editor.html';
+    } else {
+      loadArticleDetail(mid);
+    }
+
+    async function loadArticleDetail(id) {
+      try {
+        const resp = await fetch(`/editor/articles/${id}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) {
+          alert('無法取得稿件全文');
+          window.location.href = '/static/editor.html';
+          return;
+        }
+        const data = await resp.json();
+        renderDetail(data);
+      } catch (err) {
+        document.getElementById('articleCard').innerHTML = '<div style="color:red; text-align:center;">載入失敗</div>';
+      }
+    }
+
+    function renderDetail(m) {
+      const card = document.getElementById('articleCard');
+      card.innerHTML = `
+        <div class="meta-bar">
+          <span class="tag-category">類別：${escapeHtml(m.category)}</span>
+          <span>👤 作者：<strong>${escapeHtml(m.author_name || '作者ID:' + m.author_id)}</strong></span>
+          <span>稿件編號：#${m.id}</span>
+          <span>狀態：<strong style="color:#2563eb;">${escapeHtml(m.status_display || m.status)}</strong></span>
+        </div>
+
+        <h2 class="article-title">${escapeHtml(m.title)}</h2>
+
+        <div style="margin-bottom:8px; font-weight:600; color:#475569; font-size:14px;">文章全文內容：</div>
+        <div class="content-box">${escapeHtml(m.content)}</div>
+
+        <div class="btn-row">
+          <a href="/static/editor.html" class="btn btn-back">返回待審清單</a>
+          <button class="btn btn-reject" onclick="doReject(${m.id})">退回稿件 (退回編輯中)</button>
+          <button class="btn btn-pass" onclick="doApprove(${m.id})">通過審查 (標記已通過)</button>
+        </div>
+      `;
+    }
+
+    async function doApprove(id) {
+      if (!confirm('確認通過此稿件審查嗎？')) return;
+      try {
+        const resp = await fetch(`/editor/articles/${id}/approve`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const res = await resp.json();
+        if (resp.ok) {
+          alert('✅ 稿件審查通過！已更新狀態為「已通過」。');
+          window.location.href = '/static/editor.html';
+        } else {
+          alert(res.detail || '操作失敗');
+        }
+      } catch (err) {
+        alert('通過操作失敗');
+      }
+    }
+
+    async function doReject(id) {
+      if (!confirm('確認退回此稿件給作者修改嗎？狀態將變更為「編輯中」。')) return;
+      try {
+        const resp = await fetch(`/editor/articles/${id}/reject`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const res = await resp.json();
+        if (resp.ok) {
+          alert('↩️ 稿件已退回！狀態變更為「編輯中」，並通知作者。');
+          window.location.href = '/static/editor.html';
+        } else {
+          alert(res.detail || '操作失敗');
+        }
+      } catch (err) {
+        alert('退回操作失敗');
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>

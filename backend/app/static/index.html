@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>投稿審查系統 - 系統登入</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif; }
+    body { background-color: #f4f6f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+    .card { background: #fff; width: 100%; max-width: 440px; padding: 36px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+    h1 { font-size: 24px; text-align: center; color: #1e293b; margin-bottom: 8px; }
+    p.subtitle { text-align: center; color: #64748b; font-size: 14px; margin-bottom: 24px; }
+    .tabs { display: flex; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; }
+    .tab-btn { flex: 1; padding: 10px; border: none; background: none; font-size: 15px; font-weight: 600; color: #64748b; cursor: pointer; }
+    .tab-btn.active { color: #2563eb; border-bottom: 2px solid #2563eb; margin-bottom: -2px; }
+    .form-group { margin-bottom: 18px; }
+    label { display: block; font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 6px; }
+    input[type="text"], input[type="password"] { width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; transition: border-color 0.2s; }
+    input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
+    .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
+    .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; background-color: #2563eb; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn:hover { background-color: #1d4ed8; }
+    .alert { padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; display: none; }
+    .alert.error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .alert.success { background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .info-box { margin-top: 24px; padding: 14px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; font-size: 13px; color: #475569; }
+    .info-box ul { padding-left: 18px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>投稿審查系統</h1>
+    <p class="subtitle">使用者身分登入</p>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tabLogin" onclick="switchTab('login')">使用者登入</button>
+      <button class="tab-btn" id="tabRegister" onclick="switchTab('register')">作者註冊</button>
+    </div>
+
+    <div id="alertBox" class="alert"></div>
+
+    <form id="authForm" onsubmit="handleSubmit(event)">
+      <div class="form-group">
+        <label for="username">帳號</label>
+        <input type="text" id="username" placeholder="請輸入帳號" required autocomplete="username">
+        <div class="hint">僅限數字、英文或數字英文組合</div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">密碼</label>
+        <input type="password" id="password" placeholder="請輸入密碼" required autocomplete="current-password">
+        <div class="hint">僅限數字、英文或數字英文組合</div>
+      </div>
+
+      <button type="submit" class="btn" id="submitBtn">登入系統</button>
+    </form>
+
+    <div class="info-box">
+      <strong>帳號登入說明：</strong>
+      <ul>
+        <li><strong>編輯者 (審查員)：</strong> 帳號 <code>host</code> / 密碼 <code>123</code> (登入進入審查專區)</li>
+        <li><strong>作者 (投稿者)：</strong> 登入進入作者專區 (帳密僅限英數字)</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    let currentMode = 'login';
+
+    function switchTab(mode) {
+      currentMode = mode;
+      document.getElementById('tabLogin').className = mode === 'login' ? 'tab-btn active' : 'tab-btn';
+      document.getElementById('tabRegister').className = mode === 'register' ? 'tab-btn active' : 'tab-btn';
+      document.getElementById('submitBtn').textContent = mode === 'login' ? '登入系統' : '註冊作者帳號';
+      showAlert('', '');
+    }
+
+    function showAlert(text, type) {
+      const box = document.getElementById('alertBox');
+      if (!text) {
+        box.style.display = 'none';
+        return;
+      }
+      box.textContent = text;
+      box.className = 'alert ' + type;
+      box.style.display = 'block';
+    }
+
+    async function handleSubmit(e) {
+      e.preventDefault();
+      const u = document.getElementById('username').value.trim();
+      const p = document.getElementById('password').value.trim();
+
+      // 檢查格式
+      const regex = /^[a-zA-Z0-9]+$/;
+      if (!regex.test(u) || !regex.test(p)) {
+        showAlert('帳號與密碼僅限數字、英文或數字英文組合！', 'error');
+        return;
+      }
+
+      const endpoint = currentMode === 'login' ? '/auth/login' : '/auth/register';
+
+      try {
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u, password: p })
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+          showAlert(data.detail || '操作失敗', 'error');
+          return;
+        }
+
+        // 登入成功，儲存憑證
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('role', data.role);
+        localStorage.setItem('username', data.username);
+
+        showAlert(currentMode === 'login' ? '登入成功，正在導向...' : '註冊成功，正在登入...', 'success');
+
+        setTimeout(() => {
+          if (data.role === 'editor') {
+            window.location.href = '/static/editor.html';
+          } else {
+            window.location.href = '/static/author.html';
+          }
+        }, 500);
+
+      } catch (err) {
+        showAlert('網路連線或伺服器錯誤', 'error');
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>編輯/新增投稿 - 投稿審查系統</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif; }
+    body { background-color: #f1f5f9; color: #1e293b; padding-bottom: 40px; }
+    header { background-color: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 20px; color: #0f172a; }
+    .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); padding: 32px; border: 1px solid #e2e8f0; }
+    .page-title { font-size: 22px; font-weight: 700; color: #0f172a; margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 8px; }
+    input[type="text"], select, textarea { width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
+    textarea { min-height: 220px; line-height: 1.6; resize: vertical; }
+    .btn-row { display: flex; gap: 12px; justify-content: flex-end; margin-top: 28px; }
+    .btn { padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; text-decoration: none; display: inline-flex; align-items: center; }
+    .btn-primary { background-color: #2563eb; color: #fff; }
+    .btn-primary:hover { background-color: #1d4ed8; }
+    .btn-cancel { background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+    .btn-cancel:hover { background-color: #e2e8f0; }
+    .alert { padding: 14px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; display: none; }
+    .alert.error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .alert.success { background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>投稿審查系統 - 稿件編輯</h1>
+    <a href="/static/author.html" style="font-size:14px; color:#2563eb; text-decoration:none; font-weight:600;">← 返回稿件清單</a>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <div class="page-title">
+        <span id="formTitle">新增投稿稿件</span>
+        <span style="font-size: 13px; font-weight: normal; color: #64748b;">儲存後狀態為：編輯中</span>
+      </div>
+
+      <div id="alertBox" class="alert"></div>
+
+      <form id="manuscriptForm" onsubmit="saveManuscript(event)">
+        <div class="form-group">
+          <label for="category">稿件類別 <span style="color:red;">*</span></label>
+          <input type="text" id="category" placeholder="例如：資訊科技、文學藝術、社會科學、教育生活" required list="categoryList">
+          <datalist id="categoryList">
+            <option value="資訊科技">
+            <option value="文學藝術">
+            <option value="社會科學">
+            <option value="自然科學">
+            <option value="教育生活">
+          </datalist>
+        </div>
+
+        <div class="form-group">
+          <label for="title">稿件標題 <span style="color:red;">*</span></label>
+          <input type="text" id="title" placeholder="請輸入稿件標題" required maxlength="200">
+        </div>
+
+        <div class="form-group">
+          <label for="content">文章內容 <span style="color:red;">*</span></label>
+          <textarea id="content" placeholder="請在此輸入稿件文章內容（支援各種語言）" required></textarea>
+        </div>
+
+        <div class="btn-row">
+          <a href="/static/author.html" class="btn btn-cancel">取消返回</a>
+          <button type="submit" class="btn btn-primary" id="submitBtn">儲存稿件 (狀態: 編輯中)</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    const params = new URLSearchParams(window.location.search);
+    const mid = params.get('id');
+
+    if (!token || role !== 'author') {
+      alert('請先以作者身分登入！');
+      window.location.href = '/static/index.html';
+    }
+
+    if (mid) {
+      document.getElementById('formTitle').textContent = `編輯稿件 (編號 #${mid})`;
+      document.title = `編輯稿件 #${mid} - 投稿審查系統`;
+      loadManuscript(mid);
+    }
+
+    async function loadManuscript(id) {
+      try {
+        const resp = await fetch(`/author/articles/${id}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) {
+          alert('無法取得稿件資料或該稿件非編輯中狀態');
+          window.location.href = '/static/author.html';
+          return;
+        }
+        const data = await resp.json();
+        if (data.status !== 'draft') {
+          alert('此稿件狀態並非「編輯中」，不可進行編輯！');
+          window.location.href = '/static/author.html';
+          return;
+        }
+        document.getElementById('category').value = data.category || '';
+        document.getElementById('title').value = data.title || '';
+        document.getElementById('content').value = data.content || '';
+      } catch (err) {
+        alert('載入稿件資料失敗');
+      }
+    }
+
+    function showAlert(text, type) {
+      const box = document.getElementById('alertBox');
+      if (!text) { box.style.display = 'none'; return; }
+      box.textContent = text;
+      box.className = 'alert ' + type;
+      box.style.display = 'block';
+    }
+
+    async function saveManuscript(e) {
+      e.preventDefault();
+      const cat = document.getElementById('category').value.trim();
+      const title = document.getElementById('title').value.trim();
+      const content = document.getElementById('content').value.trim();
+
+      if (!content) {
+        showAlert('文章內容不可為空！', 'error');
+        return;
+      }
+
+      const payload = { category: cat, title: title, content: content };
+      const url = mid ? `/author/articles/${mid}` : '/author/articles';
+      const method = mid ? 'PUT' : 'POST';
+
+      try {
+        const resp = await fetch(url, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify(payload)
+        });
+        const res = await resp.json();
+
+        if (resp.ok) {
+          showAlert(mid ? '稿件更新成功！狀態保持為「編輯中」。' : '稿件新增成功！狀態為「編輯中」。正在返回清單...', 'success');
+          setTimeout(() => {
+            window.location.href = '/static/author.html';
+          }, 800);
+        } else {
+          showAlert(res.detail || '儲存失敗', 'error');
+        }
+      } catch (err) {
+        showAlert('網路連線或伺服器錯誤', 'error');
+      }
+    }
+  </script>
+</body>
+</html>

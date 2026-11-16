@@ -1,28 +1,177 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
-<head><meta charset="UTF-8"><title>�f�ֽZ��M��</title></head>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>審查專區 - 待審清單</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif; }
+    body { background-color: #f1f5f9; color: #1e293b; padding-bottom: 40px; }
+    header { background-color: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 20px; color: #0f172a; }
+    .user-info { display: flex; align-items: center; gap: 16px; font-size: 14px; color: #475569; }
+    .badge-role { background-color: #ede9fe; color: #6d28d9; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 12px; }
+    .btn-logout { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+    .btn-logout:hover { background: #e2e8f0; }
+    .container { max-width: 1080px; margin: 30px auto; padding: 0 20px; }
+    .page-title { font-size: 22px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+    .page-subtitle { color: #64748b; font-size: 14px; margin-bottom: 20px; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th { background: #f8fafc; color: #475569; font-size: 14px; font-weight: 600; padding: 14px 18px; border-bottom: 1px solid #e2e8f0; }
+    td { padding: 16px 18px; border-bottom: 1px solid #f1f5f9; font-size: 14px; vertical-align: middle; }
+    tr:hover { background-color: #f8fafc; }
+    .tag-category { background-color: #f1f5f9; color: #334155; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+    .operations { display: flex; gap: 8px; align-items: center; }
+    .btn-op { padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; border: 1px solid transparent; cursor: pointer; text-decoration: none; }
+    .btn-view { background-color: #f1f5f9; border-color: #cbd5e1; color: #0f172a; }
+    .btn-view:hover { background-color: #e2e8f0; }
+    .btn-pass { background-color: #10b981; color: #fff; }
+    .btn-pass:hover { background-color: #059669; }
+    .btn-reject { background-color: #f59e0b; color: #fff; }
+    .btn-reject:hover { background-color: #d97706; }
+    .empty-state { padding: 50px; text-align: center; color: #94a3b8; font-size: 15px; }
+  </style>
+</head>
 <body>
-<h1>�ݼf�Z��</h1>
-<table id="queue" border="1">
-  <tr><th>�@�� ID</th><th>���O</th><th>���D</th><th>�ʧ@</th></tr>
-</table>
+  <header>
+    <h1>投稿審查系統 - 審查專區</h1>
+    <div class="user-info">
+      <span>審查員帳號：<strong>host</strong></span>
+      <span class="badge-role">編輯審查員</span>
+      <button class="btn-logout" onclick="logout()">登出系統</button>
+    </div>
+  </header>
 
-<script>
-async function loadQueue(){
-    const r = await fetch('/editor/review-queue');
-    const list = await r.json();
-    const tbl = document.getElementById('queue');
-    list.forEach(a=>{
-        const tr=document.createElement('tr');
-        tr.innerHTML = <td></td><td></td><td></td>
-                       <td><button onclick="approve()">�q�L</button>
-                           <button onclick="reject()">�h�^</button></td>;
-        tbl.appendChild(tr);
-    });
-}
-async function approve(id){ await fetch(/editor/articles//approve,{method:'POST'}); location.reload();}
-async function reject(id){ await fetch(/editor/articles//reject,{method:'POST'}); location.reload();}
-loadQueue();
-</script>
+  <div class="container">
+    <div class="page-title">待審查稿件清單</div>
+    <div class="page-subtitle">顯示所有作者已送出的審查中稿件，可點擊「查看」檢視全文，或直接執行「通過」或「退回」</div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 140px;">作者</th>
+            <th style="width: 150px;">類別</th>
+            <th>稿件標題</th>
+            <th style="width: 250px;">審查操作</th>
+          </tr>
+        </thead>
+        <tbody id="queueList">
+          <tr><td colspan="4" class="empty-state">待審清單載入中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+
+    if (!token || role !== 'editor') {
+      alert('請先以編輯者帳號 (host) 登入！');
+      window.location.href = '/static/index.html';
+    } else {
+      loadQueue();
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = '/static/index.html';
+    }
+
+    async function loadQueue() {
+      try {
+        const resp = await fetch('/editor/review-queue', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          logout();
+          return;
+        }
+        const data = await resp.json();
+        renderQueue(data);
+      } catch (err) {
+        document.getElementById('queueList').innerHTML = '<tr><td colspan="4" class="empty-state" style="color:red;">載入待審清單失敗</td></tr>';
+      }
+    }
+
+    function renderQueue(list) {
+      const tbody = document.getElementById('queueList');
+      if (!list || list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">🎉 目前無待審查稿件！所有投稿均已審查完畢。</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = list.map(item => `
+        <tr>
+          <td>
+            <div style="font-weight:600; color:#334155;">👤 ${escapeHtml(item.author_name || ('作者ID:' + item.author_id))}</div>
+          </td>
+          <td><span class="tag-category">${escapeHtml(item.category)}</span></td>
+          <td>
+            <div style="font-weight:600; font-size:15px; color:#0f172a;">${escapeHtml(item.title)}</div>
+          </td>
+          <td>
+            <div class="operations">
+              <a href="/static/view_manuscript.html?id=${item.id}" class="btn-op btn-view">查看內容</a>
+              <button class="btn-op btn-pass" onclick="handleApprove(${item.id})">通過</button>
+              <button class="btn-op btn-reject" onclick="handleReject(${item.id})">退回</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function handleApprove(id) {
+      if (!confirm('確認通過此稿件審查嗎？稿件狀態將變為「已通過」。')) return;
+
+      try {
+        const resp = await fetch(`/editor/articles/${id}/approve`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const res = await resp.json();
+        if (resp.ok) {
+          alert('✅ 審查已通過！稿件狀態已同步更新為「已通過」。');
+          loadQueue();
+        } else {
+          alert(res.detail || '操作失敗');
+        }
+      } catch (err) {
+        alert('審查通過操作失敗');
+      }
+    }
+
+    async function handleReject(id) {
+      if (!confirm('確認退回此稿件嗎？稿件狀態將變為「編輯中」，並通知作者重新修改。')) return;
+
+      try {
+        const resp = await fetch(`/editor/articles/${id}/reject`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const res = await resp.json();
+        if (resp.ok) {
+          alert('↩️ 稿件已退回！狀態已變更為「編輯中」，系統已記錄通知作者。');
+          loadQueue();
+        } else {
+          alert(res.detail || '操作失敗');
+        }
+      } catch (err) {
+        alert('退回操作失敗');
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
 </body>
 </html>
