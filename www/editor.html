@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head><meta charset="UTF-8"><title>審核稿件清單</title></head>
+<body>
+<h1>待審稿件</h1>
+<table id="queue" border="1">
+  <tr><th>作者 ID</th><th>類別</th><th>標題</th><th>動作</th></tr>
+</table>
+
+<script>
+async function loadQueue(){
+    const r = await fetch('/editor/review-queue');
+    const list = await r.json();
+    const tbl = document.getElementById('queue');
+    list.forEach(a=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = <td></td><td></td><td></td>
+                       <td><button onclick="approve()">通過</button>
+                           <button onclick="reject()">退回</button></td>;
+        tbl.appendChild(tr);
+    });
+}
+async function approve(id){ await fetch(/editor/articles//approve,{method:'POST'}); location.reload();}
+async function reject(id){ await fetch(/editor/articles//reject,{method:'POST'}); location.reload();}
+loadQueue();
+</script>
+</body>
+</html>
